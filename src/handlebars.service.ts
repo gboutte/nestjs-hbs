@@ -1,10 +1,18 @@
-import { Injectable, InternalServerErrorException } from "@nestjs/common";
+import {
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+} from "@nestjs/common";
 import * as fs from "fs";
 import Handlebars from "handlebars";
 import * as path from "path";
+import { HandlebarsOptions } from "./handlebars-options.interface";
 
 @Injectable()
 export class HandlebarsService {
+  constructor(
+    @Inject("HANDLEBARS_PARAMETERS") private options: HandlebarsOptions
+  ) {}
   render(html: string, parameters: any = {}): string {
     Handlebars.registerHelper("base64ImageSrc", function (imagePath: string) {
       const bitmap = fs.readFileSync(
@@ -16,11 +24,8 @@ export class HandlebarsService {
     });
 
     try {
-      const template = Handlebars.compile(html);
-      const result = template(parameters, {
-        allowProtoMethodsByDefault: true,
-        allowProtoPropertiesByDefault: true,
-      });
+      const template = Handlebars.compile(html, this.options.compileOptions);
+      const result = template(parameters, this.options.templateOptions);
       return result;
     } catch (err) {
       throw new InternalServerErrorException("Could not render template");
@@ -30,7 +35,11 @@ export class HandlebarsService {
   renderFile(file: string, parameters: any = {}): string {
     let data;
     try {
-      const fullpath = path.join(process.cwd(), "templates", file);
+      const fullpath = path.join(
+        process.cwd(),
+        this.options.templateDirectory,
+        file
+      );
       data = fs.readFileSync(fullpath, "utf8");
     } catch (err) {
       throw new InternalServerErrorException("Could not render file");
