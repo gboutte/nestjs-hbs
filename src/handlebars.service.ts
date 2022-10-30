@@ -23,9 +23,22 @@ export class HandlebarsService {
       return new Handlebars.SafeString(`data:image/png;base64,${base64String}`);
     });
 
+    let compileOptions;
+    if (this.options.compileOptions === undefined) {
+      compileOptions = {};
+    } else {
+      compileOptions = this.options.compileOptions;
+    }
+
+    let templateOptions;
+    if (this.options.templateOptions === undefined) {
+      templateOptions = {};
+    } else {
+      templateOptions = this.options.templateOptions;
+    }
     try {
-      const template = Handlebars.compile(html, this.options.compileOptions);
-      const result = template(parameters, this.options.templateOptions);
+      const template = Handlebars.compile(html, compileOptions);
+      const result = template(parameters, templateOptions);
       return result;
     } catch (err) {
       throw new InternalServerErrorException("Could not render template");
@@ -34,6 +47,12 @@ export class HandlebarsService {
 
   renderFile(file: string, parameters: any = {}): string {
     let data;
+    if (this.options.templateDirectory === undefined) {
+      throw new InternalServerErrorException(
+        "Option templateDirectory is not set"
+      );
+    }
+
     try {
       const fullpath = path.join(
         process.cwd(),

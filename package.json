@@ -1,7 +1,18 @@
 {
   "name": "@gboutte/nestjs-hbs",
-  "version": "0.0.2",
-  "description": "",
+  "version": "0.0.3",
+  "description": "This package provide a service to render handlebars templates for nestjs.",
+  "keywords": [
+    "nestjs",
+    "handlebars",
+    "hbs",
+    "templates"
+  ],
+  "homepage": "https://github.com/gboutte/nestjs-hbs#readme",
+  "bugs": {
+    "url": "https://github.com/gboutte/nestjs-hbs/issues",
+    "email": "gboutte@protonmail.com"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -9,15 +20,20 @@
     "build": "rimraf dist && tsc",
     "prepublish": "npm run build"
   },
-  "author": "Grégory Boutte",
-  "license": "ISC",
+  "author": "Grégory Boutte <gboutte@protonmail.com>",
+  "license": "MIT",
   "dependencies": {
-    "@nestjs/common": "^9.1.6",
     "@types/node": "^18.11.5",
     "handlebars": "^4.7.7",
     "reflect-metadata": "^0.1.13",
     "rimraf": "^3.0.2",
     "rxjs": "^7.5.7",
     "typescript": "^4.8.4"
+  },
+  "devDependencies": {
+    "@nestjs/common": "^9.1.6"
+  },
+  "peerDependencies": {
+    "@nestjs/common": "^9.1.6"
   }
 }
