@@ -18,7 +18,7 @@ export class HandlebarsService {
       const bitmap = fs.readFileSync(
         path.join(process.cwd(), "templates/assets/img", imagePath)
       );
-      const base64String = new Buffer(bitmap).toString("base64");
+      const base64String = Buffer.from(bitmap).toString("base64");
 
       return new Handlebars.SafeString(`data:image/png;base64,${base64String}`);
     });

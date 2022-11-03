@@ -1,6 +1,6 @@
 {
   "name": "@gboutte/nestjs-hbs",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "This package provide a service to render handlebars templates for nestjs.",
   "keywords": [
     "nestjs",
@@ -12,6 +12,10 @@
   "bugs": {
     "url": "https://github.com/gboutte/nestjs-hbs/issues",
     "email": "gboutte@protonmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gboutte/nestjs-hbs"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
