@@ -1,6 +1,6 @@
 {
   "name": "@gboutte/nestjs-hbs",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "This package provide a service to render handlebars templates for nestjs.",
   "keywords": [
     "nestjs",
