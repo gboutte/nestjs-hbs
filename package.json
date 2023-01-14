@@ -1,6 +1,6 @@
 {
   "name": "@gboutte/nestjs-hbs",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "This package provide a service to render handlebars templates for nestjs.",
   "keywords": [
     "nestjs",
@@ -29,7 +29,7 @@
   "dependencies": {},
   "devDependencies": {
     "@nestjs/common": "^9.1.6",
-    "@types/node": "^16.0.0",
+    "@types/node": "^18.0.0",
     "handlebars": "^4.7.7",
     "reflect-metadata": "^0.1.13",
     "rimraf": "^3.0.2",
@@ -38,7 +38,7 @@
   },
   "peerDependencies": {
     "@nestjs/common": "^9.1.6",
-    "@types/node": "^16.0.0",
+    "@types/node": "^18.0.0",
     "handlebars": "^4.7.7",
     "reflect-metadata": "^0.1.13",
     "rimraf": "^3.0.2",
