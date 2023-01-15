@@ -25,6 +25,7 @@ export class AppModule {}
 | `templateDirectory` | This will define the folder where the templates files are located                                                                      |
 | `compileOptions`    | The templates options can be found on: https://handlebarsjs.com/api-reference/runtime-options.html#options-to-control-prototype-access |
 | `templateOptions`   | The compile options can be found on https://handlebarsjs.com/api-reference/compilation.html#handlebars-compile-template-options        |
+| `helpers`   | An array of helpers to add in handlebars, each helpers has a property `name` and  `fn`   |
 
 
 

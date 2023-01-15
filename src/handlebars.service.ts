@@ -23,6 +23,12 @@ export class HandlebarsService {
       return new Handlebars.SafeString(`data:image/png;base64,${base64String}`);
     });
 
+    if (this.options.helpers !== undefined) {
+      for (let helper of this.options.helpers) {
+        Handlebars.registerHelper(helper.name, helper.fn);
+      }
+    }
+
     let compileOptions;
     if (this.options.compileOptions === undefined) {
       compileOptions = {};
@@ -41,7 +47,9 @@ export class HandlebarsService {
       const result = template(parameters, templateOptions);
       return result;
     } catch (err) {
-      throw new InternalServerErrorException("Could not render template");
+      throw new InternalServerErrorException(
+        "Could not render template: " + err
+      );
     }
   }
 
