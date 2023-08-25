@@ -10,6 +10,7 @@ import { HandlebarsOptions } from "./handlebars-options.interface";
 
 @Injectable()
 export class HandlebarsService {
+  
   constructor(
     @Inject("HANDLEBARS_PARAMETERS") private options: HandlebarsOptions
   ) {}
