@@ -1,6 +1,6 @@
-import { DynamicModule, Global, Module } from "@nestjs/common";
-import { HandlebarsOptions } from "./handlebars-options.interface";
-import { HandlebarsService } from "./handlebars.service";
+import { DynamicModule, Global, Module } from '@nestjs/common';
+import { HandlebarsOptions } from './handlebars-options.interface';
+import { HandlebarsService } from './handlebars.service';
 
 @Global()
 @Module({
@@ -14,7 +14,7 @@ export class HandlebarsModule {
       module: HandlebarsModule,
       providers: [
         {
-          provide: "HANDLEBARS_PARAMETERS",
+          provide: 'HANDLEBARS_PARAMETERS',
           useValue: handlebarsOptions,
         },
       ],

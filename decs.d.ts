@@ -1,1 +1,1 @@
-declare module "@gboutte/nestjs-hbs"
+declare module '@gboutte/nestjs-hbs';

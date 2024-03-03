@@ -1,4 +1,4 @@
-import { HelperDelegate } from "handlebars";
+import { HelperDelegate } from 'handlebars';
 
 export interface HandlebarsOptions {
   templateDirectory?: string;
