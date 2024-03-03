@@ -1,4 +1,4 @@
-import { HandlebarsModule } from "./handlebars.module";
-import { HandlebarsService } from "./handlebars.service";
+import { HandlebarsModule } from './handlebars.module';
+import { HandlebarsService } from './handlebars.service';
 
 export { HandlebarsModule, HandlebarsService };
