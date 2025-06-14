@@ -29,7 +29,7 @@
   "author": "Grégory Boutte <gboutte@protonmail.com>",
   "license": "MIT",
   "devDependencies": {
-    "@nestjs/common": "^9.0.0 || ^10.0.0",
+    "@nestjs/common": "^9.0.0 || ^10.0.0 || ^11.0.0",
     "@types/node": "^18.0.0 || ^19.0.0 || ^20.0.0",
     "handlebars": "^4.7.8",
     "prettier": "^3.2.5",
@@ -40,7 +40,7 @@
     "typescript": "^5.2.2"
   },
   "peerDependencies": {
-    "@nestjs/common": "^9.0.0 || ^10.0.0",
+    "@nestjs/common": "^9.0.0 || ^10.0.0 || ^11.0.0",
     "handlebars": "^4.7.8"
   }
 }

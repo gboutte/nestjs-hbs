@@ -46,7 +46,7 @@ export class AppController {
 
   @Get()
   async getTest() {
-    return this.hbs.renderFile('hello.hbs', { name: 'John Doe'});
+    return this.hbsService.renderFile('hello.hbs', { name: 'John Doe'});
   }
 }
 ```
