@@ -34,10 +34,10 @@ export class AppModule {}
 
 You can use the `HandlebarsService`, there is currently two methods
 
-|            | Description                                                                                                                      | Parameters                                                                                                          |
-|------------|----------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
-| renderFile | This will render a handlebars template (located in the template folder previously defined), and will return the rendered string. | - `file`: the template file to render <br>- `parameters`: an array of parameters that will be user inside the template  |
-| render     | This will render a template string using handlebars                                                                              | - `html`: the template <br>- `parameters`: an array of parameters that will be user inside the templatestring                                                                                       |
+|            | Description                                                                                                                      | Parameters                                                                                                             |
+|------------|----------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| renderFile | This will render a handlebars template (located in the template folder previously defined), and will return the rendered string. | - `file`: the template file to render <br>- `parameters`: an array of parameters that will be used inside the template |
+| render     | This will render a template string using handlebars                                                                              | - `html`: the template <br>- `parameters`: an array of parameters that will be used inside the template string         |
 Here is an example 
 ```ts
 @Controller()
@@ -47,6 +47,10 @@ export class AppController {
   @Get()
   async getTest() {
     return this.hbsService.renderFile('hello.hbs', { name: 'John Doe'});
+  }
+  @Get('template-string')
+  async getTest() {
+    return this.hbsService.render('<h1>Hello {{name}}</h1>', { name: 'John Doe'});
   }
 }
 ```
