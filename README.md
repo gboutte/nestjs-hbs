@@ -11,6 +11,7 @@ npm install @gboutte/nestjs-hbs
   imports: [
     HandlebarsModule.forRoot({
       templateDirectory: 'templates',
+      partialDirectory: 'templates/partials',
       compileOptions: {},
       templateOptions: {},
     })
@@ -25,7 +26,8 @@ export class AppModule {}
 | `templateDirectory` | This will define the folder where the templates files are located                                                                      |
 | `compileOptions`    | The templates options can be found on: https://handlebarsjs.com/api-reference/runtime-options.html#options-to-control-prototype-access |
 | `templateOptions`   | The compile options can be found on https://handlebarsjs.com/api-reference/compilation.html#handlebars-compile-template-options        |
-| `helpers`   | An array of helpers to add in handlebars, each helpers has a property `name` and  `fn`   |
+| `partialDirectory`   | This will load all files as partials. If you have a file named `myPartial.hbs`, a partial named `myPartial` will be added.               |
+| `helpers`   | An array of helpers to add in handlebars, each helpers has a property `name` and  `fn`                                                 |
 
 
 

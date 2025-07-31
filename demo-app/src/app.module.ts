@@ -7,7 +7,7 @@ import { HandlebarsModule } from '@gboutte/nestjs-hbs';
       templateDirectory: 'templates',
       compileOptions: {},
       templateOptions: {},
-    })
+    }),
   ],
   controllers: [AppController],
   providers: [],

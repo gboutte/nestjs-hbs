@@ -2,6 +2,7 @@ import {
   Inject,
   Injectable,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import * as fs from 'fs';
 import Handlebars from 'handlebars';
@@ -10,6 +11,7 @@ import { HandlebarsOptions } from './handlebars-options.interface';
 
 @Injectable()
 export class HandlebarsService {
+  private readonly logger = new Logger(HandlebarsService.name);
   constructor(
     @Inject('HANDLEBARS_PARAMETERS') private options: HandlebarsOptions,
   ) {}
@@ -42,10 +44,11 @@ export class HandlebarsService {
     } else {
       templateOptions = this.options.templateOptions;
     }
+
+    this.registerPartials();
     try {
       const template = Handlebars.compile(html, compileOptions);
-      const result = template(parameters, templateOptions);
-      return result;
+      return template(parameters, templateOptions);
     } catch (err) {
       throw new InternalServerErrorException(
         'Could not render template: ' + err,
@@ -72,5 +75,31 @@ export class HandlebarsService {
       throw new InternalServerErrorException('Could not render file');
     }
     return this.render(data, parameters);
+  }
+
+  private registerPartials(): void {
+    if (this.options.partialDirectory !== undefined) {
+      const partialPath = path.join(
+        process.cwd(),
+        this.options.partialDirectory,
+      );
+
+      if (!fs.existsSync(partialPath)) {
+        throw new InternalServerErrorException(
+          'Partial directory does not exist: ' + partialPath,
+        );
+      }
+      const files = fs.readdirSync(partialPath);
+      for (const file of files) {
+        const filePath = path.join(partialPath, file);
+        if (fs.statSync(filePath).isFile()) {
+          const partialName = path.basename(file, path.extname(file));
+          const partialContent = fs.readFileSync(filePath, 'utf8');
+          this.logger.log('Registering partial: ' + partialName);
+
+          Handlebars.registerPartial(partialName, partialContent);
+        }
+      }
+    }
   }
 }

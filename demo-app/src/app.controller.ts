@@ -7,6 +7,6 @@ export class AppController {
 
   @Get()
   getHello(): string {
-    return this.hbsService.renderFile('demo.hbs', { name: 'John Doe'});
+    return this.hbsService.renderFile('demo.hbs', { name: 'John Doe' });
   }
 }
