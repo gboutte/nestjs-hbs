@@ -1,5 +1,8 @@
 import { InternalServerErrorException } from '@nestjs/common';
-import { describe, expect, it } from 'vitest';
+import * as fs from 'fs';
+import Handlebars from 'handlebars';
+import * as path from 'path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { HandlebarsOptions } from '../src/handlebars-options.interface';
 import { HandlebarsService } from '../src/handlebars.service';
 
@@ -12,12 +15,6 @@ const PARTIAL_DIR = 'test/fixtures/partials';
 function createService(options: HandlebarsOptions = {}): HandlebarsService {
   return new HandlebarsService(options);
 }
-
-// NOTE: HandlebarsService registers helpers and partials on the *global*
-// Handlebars instance, so anything registered by one test stays visible to the
-// next one. Every helper and partial below therefore uses a name unique to its
-// own test. See tmp_todo.md #2 — once the service switches to
-// `Handlebars.create()`, that constraint disappears.
 
 describe('HandlebarsService', () => {
   describe('render', () => {
@@ -133,6 +130,110 @@ describe('HandlebarsService', () => {
     it('renders without partials when partialDirectory is omitted', () => {
       expect(createService().render('Hello {{name}}', { name: 'John' })).toBe(
         'Hello John',
+      );
+    });
+  });
+
+  describe('initialization', () => {
+    const TMP_PARTIAL_DIR = 'test/fixtures/tmp-partials';
+    const tmpPartial = path.join(TMP_PARTIAL_DIR, 'volatile.hbs');
+
+    beforeEach(() => {
+      fs.mkdirSync(TMP_PARTIAL_DIR, { recursive: true });
+      fs.writeFileSync(tmpPartial, 'first', 'utf8');
+    });
+
+    afterEach(() => {
+      // maxRetries/retryDelay: Windows can still hold a handle on a file that
+      // was written a few milliseconds earlier and answers EBUSY.
+      fs.rmSync(TMP_PARTIAL_DIR, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 50,
+      });
+    });
+
+    it('reads the partial directory once, not on every render', () => {
+      const service = createService({ partialDirectory: TMP_PARTIAL_DIR });
+
+      expect(service.render('{{> volatile}}')).toBe('first');
+
+      fs.writeFileSync(tmpPartial, 'second', 'utf8');
+
+      // Still 'first': the partial was read during initialization, so this
+      // render does not touch the filesystem again.
+      expect(service.render('{{> volatile}}')).toBe('first');
+    });
+
+    it('registers partials on onModuleInit, before the first render', () => {
+      const service = createService({ partialDirectory: TMP_PARTIAL_DIR });
+      service.onModuleInit();
+
+      fs.writeFileSync(tmpPartial, 'second', 'utf8');
+
+      expect(service.render('{{> volatile}}')).toBe('first');
+    });
+
+    it('is idempotent when onModuleInit runs before a render', () => {
+      const service = createService({
+        partialDirectory: TMP_PARTIAL_DIR,
+        helpers: [{ name: 'idem', fn: () => 'ok' }],
+      });
+
+      service.onModuleInit();
+      service.onModuleInit();
+
+      expect(service.render('{{idem}} {{> volatile}}')).toBe('ok first');
+    });
+
+    it('surfaces a missing partialDirectory at startup', () => {
+      const service = createService({ partialDirectory: 'test/fixtures/nope' });
+
+      expect(() => service.onModuleInit()).toThrow(
+        /Partial directory does not exist/,
+      );
+    });
+  });
+
+  describe('isolation from the global Handlebars environment', () => {
+    it('keeps its helpers off the global instance', () => {
+      const service = createService({
+        helpers: [{ name: 'globalLeakProbe', fn: () => 'leaked' }],
+      });
+      service.onModuleInit();
+
+      expect(Handlebars.helpers['globalLeakProbe']).toBeUndefined();
+      expect(Handlebars.helpers['base64ImageSrc']).toBeUndefined();
+    });
+
+    it('keeps its partials off the global instance', () => {
+      const service = createService({ partialDirectory: PARTIAL_DIR });
+      service.onModuleInit();
+
+      expect(Handlebars.partials['siteHeader']).toBeUndefined();
+    });
+
+    it('does not let two instances overwrite each other', () => {
+      const first = createService({
+        helpers: [{ name: 'whoami', fn: () => 'first' }],
+      });
+      const second = createService({
+        helpers: [{ name: 'whoami', fn: () => 'second' }],
+      });
+
+      expect(first.render('{{whoami}}')).toBe('first');
+      expect(second.render('{{whoami}}')).toBe('second');
+      expect(first.render('{{whoami}}')).toBe('first');
+    });
+
+    it('does not let one instance see another instance partials', () => {
+      const withPartials = createService({ partialDirectory: PARTIAL_DIR });
+      const withoutPartials = createService();
+
+      expect(withPartials.render('{{> siteHeader}}')).toBe('[header]');
+      expect(() => withoutPartials.render('{{> siteHeader}}')).toThrow(
+        InternalServerErrorException,
       );
     });
   });

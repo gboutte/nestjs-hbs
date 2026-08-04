@@ -3,6 +3,7 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  OnModuleInit,
 } from '@nestjs/common';
 import * as fs from 'fs';
 import Handlebars from 'handlebars';
@@ -10,45 +11,35 @@ import * as path from 'path';
 import { HandlebarsOptions } from './handlebars-options.interface';
 
 @Injectable()
-export class HandlebarsService {
+export class HandlebarsService implements OnModuleInit {
   private readonly logger = new Logger(HandlebarsService.name);
+
+  /**
+   * Private Handlebars environment. Using the shared `Handlebars` singleton
+   * would leak our helpers and partials into the host application and into any
+   * other library that renders templates in the same process.
+   */
+  private readonly handlebars = Handlebars.create();
+
+  private initialized = false;
+
   constructor(
     @Inject('HANDLEBARS_PARAMETERS') private options: HandlebarsOptions,
   ) {}
+
+  onModuleInit(): void {
+    this.initialize();
+  }
+
   render(html: string, parameters: any = {}): string {
-    Handlebars.registerHelper('base64ImageSrc', function (imagePath: string) {
-      const bitmap = fs.readFileSync(
-        path.join(process.cwd(), 'templates/assets/img', imagePath),
-      );
-      const base64String = Buffer.from(bitmap).toString('base64');
+    this.initialize();
 
-      return new Handlebars.SafeString(`data:image/png;base64,${base64String}`);
-    });
-
-    if (this.options.helpers !== undefined) {
-      for (let helper of this.options.helpers) {
-        Handlebars.registerHelper(helper.name, helper.fn);
-      }
-    }
-
-    let compileOptions;
-    if (this.options.compileOptions === undefined) {
-      compileOptions = {};
-    } else {
-      compileOptions = this.options.compileOptions;
-    }
-
-    let templateOptions;
-    if (this.options.templateOptions === undefined) {
-      templateOptions = {};
-    } else {
-      templateOptions = this.options.templateOptions;
-    }
-
-    this.registerPartials();
     try {
-      const template = Handlebars.compile(html, compileOptions);
-      return template(parameters, templateOptions);
+      const template = this.handlebars.compile(
+        html,
+        this.options.compileOptions ?? {},
+      );
+      return template(parameters, this.options.templateOptions ?? {});
     } catch (err) {
       throw new InternalServerErrorException(
         'Could not render template: ' + err,
@@ -77,28 +68,62 @@ export class HandlebarsService {
     return this.render(data, parameters);
   }
 
-  private registerPartials(): void {
-    if (this.options.partialDirectory !== undefined) {
-      const partialPath = path.join(
-        process.cwd(),
-        this.options.partialDirectory,
-      );
+  /**
+   * Registers helpers and partials once, on the first of `onModuleInit()` or a
+   * `render()` call. The lazy guard keeps the service usable when it is built
+   * by hand rather than resolved through the Nest container.
+   */
+  private initialize(): void {
+    if (this.initialized) {
+      return;
+    }
+    this.initialized = true;
 
-      if (!fs.existsSync(partialPath)) {
-        throw new InternalServerErrorException(
-          'Partial directory does not exist: ' + partialPath,
+    this.registerHelpers();
+    this.registerPartials();
+  }
+
+  private registerHelpers(): void {
+    this.handlebars.registerHelper(
+      'base64ImageSrc',
+      (imagePath: string): Handlebars.SafeString => {
+        const bitmap = fs.readFileSync(
+          path.join(process.cwd(), 'templates/assets/img', imagePath),
         );
-      }
-      const files = fs.readdirSync(partialPath);
-      for (const file of files) {
-        const filePath = path.join(partialPath, file);
-        if (fs.statSync(filePath).isFile()) {
-          const partialName = path.basename(file, path.extname(file));
-          const partialContent = fs.readFileSync(filePath, 'utf8');
-          this.logger.log('Registering partial: ' + partialName);
+        const base64String = Buffer.from(bitmap).toString('base64');
 
-          Handlebars.registerPartial(partialName, partialContent);
-        }
+        return new this.handlebars.SafeString(
+          `data:image/png;base64,${base64String}`,
+        );
+      },
+    );
+
+    for (const helper of this.options.helpers ?? []) {
+      this.handlebars.registerHelper(helper.name, helper.fn);
+    }
+  }
+
+  private registerPartials(): void {
+    if (this.options.partialDirectory === undefined) {
+      return;
+    }
+
+    const partialPath = path.join(process.cwd(), this.options.partialDirectory);
+
+    if (!fs.existsSync(partialPath)) {
+      throw new InternalServerErrorException(
+        'Partial directory does not exist: ' + partialPath,
+      );
+    }
+
+    for (const file of fs.readdirSync(partialPath)) {
+      const filePath = path.join(partialPath, file);
+      if (fs.statSync(filePath).isFile()) {
+        const partialName = path.basename(file, path.extname(file));
+        const partialContent = fs.readFileSync(filePath, 'utf8');
+        this.logger.debug('Registering partial: ' + partialName);
+
+        this.handlebars.registerPartial(partialName, partialContent);
       }
     }
   }
