@@ -1,4 +1,6 @@
 dist/
+coverage/
 node_modules
+*.tsbuildinfo
 .idea/
 .DS_Store
