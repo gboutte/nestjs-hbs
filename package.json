@@ -15,21 +15,32 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/gboutte/nestjs-hbs"
+    "url": "git+https://github.com/gboutte/nestjs-hbs.git"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist",
     "!dist/*.tsbuildinfo"
   ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "build": "rimraf dist && tsc -p tsconfig.build.json",
-    "prepublish": "npm run build",
+    "prepare": "npm run build",
     "format": "prettier --write \"**/*.{js,mjs,ts,mts,d.ts}\"",
     "format:check": "prettier --check \"**/*.{js,mjs,ts,mts,d.ts}\""
   },

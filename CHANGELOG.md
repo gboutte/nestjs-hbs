@@ -15,7 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Partial registration is logged at `debug` level instead of `log`.
 - Raised the `handlebars` peer dependency to `^4.7.9`, which fixes a critical advisory
   affecting every earlier 4.x release.
-- The published package now only contains `dist/`.
+- The published package now only contains `dist/`, plus the README and the licence.
+- Added an `exports` map. `@gboutte/nestjs-hbs` and `@gboutte/nestjs-hbs/package.json`
+  stay reachable; deep paths such as `@gboutte/nestjs-hbs/dist/handlebars.service` no
+  longer resolve.
+- Releases are published with npm provenance, so each version carries a signed
+  attestation linking it to the workflow run that built it.
+
+### Added
+- A `LICENSE` file. The package was already declared MIT but shipped without one.
 
 ### Fixed
 - A missing `partialDirectory` is now reported when the application starts rather than on
