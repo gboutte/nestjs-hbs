@@ -28,9 +28,12 @@
   },
   "author": "Grégory Boutte <gboutte@protonmail.com>",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "devDependencies": {
     "@nestjs/common": "^9.0.0 || ^10.0.0 || ^11.0.0",
-    "@types/node": "^18.0.0 || ^19.0.0 || ^20.0.0",
+    "@types/node": "^24.0.0",
     "handlebars": "^4.7.8",
     "prettier": "^3.2.5",
     "prettier-plugin-organize-imports": "^3.2.4",
