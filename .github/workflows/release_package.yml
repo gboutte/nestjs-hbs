@@ -5,24 +5,44 @@ on:
       release-type:
         description: 'Release type (one of): patch, minor, major, prepatch, preminor, premajor, prerelease'
         required: true
+
+permissions:
+  contents: write # push the release commit, the tag and the GitHub release
+  id-token: write # mint the OIDC token npm trusted publishing needs
+
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      # Releases are cut from the default branch only. workflow_dispatch would
+      # otherwise happily publish from any branch and push the release commit there.
+      - name: Check branch
+        if: github.ref != 'refs/heads/master'
+        run: |
+          echo "Releases must be cut from master, got ${{ github.ref }}" >&2
+          exit 1
+
       # Checkout project repository
       - name: Checkout
-        uses: actions/checkout@v2.3.4
+        uses: actions/checkout@v7
 
       # Setup Node.js environment
       - name: Setup Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v7
         with:
           registry-url: https://registry.npmjs.org/
-          node-version: '18'
+          node-version-file: '.nvmrc'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
+      # Nothing gets published until the same gates the PRs go through are green.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
 
       # Configure Git
       - name: Git configuration
@@ -50,13 +70,16 @@ jobs:
         env:
           RELEASE_TYPE: ${{ github.event.inputs.release-type }}
 
-
       - name: Build library
         run: npm run build
 
+      # Last look at the tarball before it leaves the runner.
+      - name: Inspect package contents
+        run: npm pack --dry-run
+
       # Update changelog unreleased section with new version
       - name: Update changelog
-        uses: superfaceai/release-changelog-action@v1
+        uses: superfaceai/release-changelog-action@v2
         with:
           path-to-changelog: CHANGELOG.md
           version: ${{ env.NEW_VERSION }}
@@ -70,9 +93,13 @@ jobs:
           git commit -m "chore: release ${{ env.NEW_VERSION }}"
           git tag ${{ env.NEW_VERSION }}
 
-      # Publish version to public repository
+      # Publish version to public repository.
+      # `access` and `provenance` come from publishConfig in package.json.
+      # Authentication prefers OIDC (trusted publishing) and falls back to
+      # NODE_AUTH_TOKEN. Drop the token once a trusted publisher is configured
+      # on npmjs.com and a release has gone through with it.
       - name: Publish
-        run: npm publish --verbose --access public --tag ${{ env.RELEASE_TAG }}
+        run: npm publish --verbose --tag ${{ env.RELEASE_TAG }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPMJS_ACCESS_TOKEN }}
 
@@ -86,7 +113,7 @@ jobs:
       # Read version changelog
       - id: get-changelog
         name: Get version changelog
-        uses: superfaceai/release-changelog-action@v1
+        uses: superfaceai/release-changelog-action@v2
         with:
           path-to-changelog: CHANGELOG.md
           version: ${{ env.NEW_VERSION }}
@@ -94,7 +121,7 @@ jobs:
 
       # Update GitHub release with changelog
       - name: Update GitHub release documentation
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.NEW_VERSION }}
           body: ${{ steps.get-changelog.outputs.changelog }}
