@@ -1,7 +1,8 @@
+import { Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import Handlebars from 'handlebars';
 import * as path from 'path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HandlebarsOptions } from '../src/handlebars-options.interface';
 import {
   HandlebarsConfigurationError,
@@ -78,6 +79,16 @@ describe('HandlebarsService', () => {
       );
     });
 
+    it('throws when handed something that is not a template', () => {
+      const service = createService();
+
+      // Handlebars rejects a non-string synchronously, unlike a parse error,
+      // which it defers to the first invocation of the compiled delegate.
+      expect(() => service.render(undefined as unknown as string)).toThrow(
+        HandlebarsRenderError,
+      );
+    });
+
     it('keeps the Handlebars error as the cause', () => {
       const service = createService();
 
@@ -150,6 +161,110 @@ describe('HandlebarsService', () => {
       expect(service.renderFile('nested/deep.hbs', { name: 'John' })).toBe(
         'Deep John!',
       );
+    });
+  });
+
+  describe('template cache', () => {
+    const TMP_TEMPLATE_DIR = 'test/fixtures/tmp-templates';
+    const tmpTemplate = path.join(TMP_TEMPLATE_DIR, 'volatile.hbs');
+    const otherTemplate = path.join(TMP_TEMPLATE_DIR, 'other.hbs');
+
+    beforeEach(() => {
+      fs.mkdirSync(TMP_TEMPLATE_DIR, { recursive: true });
+      fs.writeFileSync(tmpTemplate, 'first', 'utf8');
+      fs.writeFileSync(otherTemplate, 'other', 'utf8');
+    });
+
+    afterEach(() => {
+      fs.rmSync(TMP_TEMPLATE_DIR, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 50,
+      });
+    });
+
+    it('reads and compiles a template once', () => {
+      const service = createService({ templateDirectory: TMP_TEMPLATE_DIR });
+
+      expect(service.renderFile('volatile.hbs')).toBe('first');
+
+      fs.writeFileSync(tmpTemplate, 'second', 'utf8');
+
+      // Still 'first': the second call served the cached template without
+      // touching the filesystem.
+      expect(service.renderFile('volatile.hbs')).toBe('first');
+    });
+
+    it('reads on every call when cache is false', () => {
+      const service = createService({
+        templateDirectory: TMP_TEMPLATE_DIR,
+        cache: false,
+      });
+
+      expect(service.renderFile('volatile.hbs')).toBe('first');
+
+      fs.writeFileSync(tmpTemplate, 'second', 'utf8');
+
+      expect(service.renderFile('volatile.hbs')).toBe('second');
+    });
+
+    it('keys the cache per file', () => {
+      const service = createService({ templateDirectory: TMP_TEMPLATE_DIR });
+
+      expect(service.renderFile('volatile.hbs')).toBe('first');
+      expect(service.renderFile('other.hbs')).toBe('other');
+      expect(service.renderFile('volatile.hbs')).toBe('first');
+    });
+
+    it('still applies the parameters on a cache hit', () => {
+      fs.writeFileSync(tmpTemplate, 'Hello {{name}}!', 'utf8');
+      const service = createService({ templateDirectory: TMP_TEMPLATE_DIR });
+
+      expect(service.renderFile('volatile.hbs', { name: 'John' })).toBe(
+        'Hello John!',
+      );
+      expect(service.renderFile('volatile.hbs', { name: 'Jane' })).toBe(
+        'Hello Jane!',
+      );
+    });
+
+    it('does not share its cache between two instances', () => {
+      const first = createService({ templateDirectory: TMP_TEMPLATE_DIR });
+      expect(first.renderFile('volatile.hbs')).toBe('first');
+
+      fs.writeFileSync(tmpTemplate, 'second', 'utf8');
+
+      const second = createService({ templateDirectory: TMP_TEMPLATE_DIR });
+      expect(second.renderFile('volatile.hbs')).toBe('second');
+      expect(first.renderFile('volatile.hbs')).toBe('first');
+    });
+
+    it('does not cache a template that could not be read', () => {
+      const service = createService({ templateDirectory: TMP_TEMPLATE_DIR });
+
+      expect(() => service.renderFile('later.hbs')).toThrow(
+        HandlebarsTemplateNotFoundError,
+      );
+
+      fs.writeFileSync(
+        path.join(TMP_TEMPLATE_DIR, 'later.hbs'),
+        'late',
+        'utf8',
+      );
+
+      expect(service.renderFile('later.hbs')).toBe('late');
+    });
+
+    it('does not cache render() input', () => {
+      const service = createService();
+
+      // render() takes an arbitrary string; caching on it would let a caller
+      // grow the map without bound.
+      expect(service.render('Hello {{name}}', { name: 'John' })).toBe(
+        'Hello John',
+      );
+      expect(service.render('Bye {{name}}', { name: 'John' })).toBe('Bye John');
     });
   });
 
@@ -257,6 +372,49 @@ describe('HandlebarsService', () => {
       expect(createService().render('Hello {{name}}', { name: 'John' })).toBe(
         'Hello John',
       );
+    });
+
+    it('reports an empty partialDirectory rather than staying silent', () => {
+      const EMPTY_DIR = 'test/fixtures/tmp-partials';
+      fs.mkdirSync(EMPTY_DIR, { recursive: true });
+
+      const debug = vi
+        .spyOn(Logger.prototype, 'debug')
+        .mockImplementation(() => undefined);
+
+      try {
+        createService({ partialDirectory: EMPTY_DIR }).onModuleInit();
+
+        // The case where someone wonders why `{{> foo}}` is not found.
+        expect(debug).toHaveBeenCalledTimes(1);
+        expect(debug.mock.calls[0][0]).toContain('No partials found in');
+      } finally {
+        debug.mockRestore();
+        fs.rmSync(EMPTY_DIR, {
+          recursive: true,
+          force: true,
+          maxRetries: 10,
+          retryDelay: 50,
+        });
+      }
+    });
+
+    it('logs the registered names once, not one line per file', () => {
+      const debug = vi
+        .spyOn(Logger.prototype, 'debug')
+        .mockImplementation(() => undefined);
+
+      try {
+        createService({ partialDirectory: PARTIAL_DIR }).onModuleInit();
+
+        // Two fixtures in the directory, still a single line.
+        expect(debug).toHaveBeenCalledTimes(1);
+        expect(debug.mock.calls[0][0]).toBe(
+          'Registered partials: siteFooter, siteHeader',
+        );
+      } finally {
+        debug.mockRestore();
+      }
     });
   });
 

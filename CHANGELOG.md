@@ -12,7 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Each `HandlebarsService` instance now uses its own Handlebars environment
   (`Handlebars.create()`), so its helpers and partials no longer leak into the host
   application or into other libraries sharing the global Handlebars instance.
-- Partial registration is logged at `debug` level instead of `log`.
+- Partial registration is logged at `debug` level instead of `log`, as a single line
+  listing the registered names rather than one line per file.
 - Raised the `handlebars` peer dependency to `^4.7.9`, which fixes a critical advisory
   affecting every earlier 4.x release.
 - The published package now only contains `dist/`, plus the README and the licence.
@@ -33,6 +34,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - A `LICENSE` file. The package was already declared MIT but shipped without one.
+- A `cache` option, on by default. `renderFile()` now reads and compiles each template
+  once and reuses the compiled form, instead of doing both on every call. There is no
+  invalidation, so a template edited on disk is only picked up after a restart — set
+  `cache: false` while developing. `render()` is not cached: its input is an arbitrary
+  string, and keying a cache on that would let a caller grow it without limit.
 - Dedicated error classes, all exported from the package root and all extending
   `HandlebarsError`, so a single `catch` clause covers the library:
   `HandlebarsConfigurationError` (missing option, missing directory — raised at startup),

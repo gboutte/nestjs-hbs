@@ -1,6 +1,7 @@
 dist/
 coverage/
 test/fixtures/tmp-partials/
+test/fixtures/tmp-templates/
 node_modules
 *.tsbuildinfo
 .idea/

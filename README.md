@@ -51,6 +51,7 @@ Every option can be left out.
 | `helpers` | `{ name, fn }[]` | Helpers to register, each with a `name` and a `fn`. |
 | `compileOptions` | `CompileOptions` | Handed to [`Handlebars.compile()`](https://handlebarsjs.com/api-reference/compilation.html#handlebars-compile-template-options). |
 | `templateOptions` | `RuntimeOptions` | Handed to the compiled template as [runtime options](https://handlebarsjs.com/api-reference/runtime-options.html). |
+| `cache` | `boolean` | Keep compiled templates in memory. Defaults to `true`. See [Caching](#caching). |
 
 Both directory options are resolved from `process.cwd()`, not from the file that
 registers the module. Starting the app from another directory (pm2, a Docker image with
@@ -87,6 +88,28 @@ application fail on boot instead of on the first render.
 Every service instance gets its own Handlebars environment, so nothing registered here
 leaks into the global `Handlebars` object or into other libraries rendering templates in
 the same process.
+
+### Caching
+
+`renderFile()` reads and compiles each template once, then keeps the compiled form keyed
+by its absolute path. Compilation is the expensive half of a render and the result is
+reusable, so subsequent calls skip both the disk read and the compilation.
+
+There is no invalidation. A template edited on disk is only picked up after a restart,
+the same way `partialDirectory` already behaves. While developing, turn it off:
+
+```ts
+HandlebarsModule.forRoot({
+  templateDirectory: 'templates',
+  cache: process.env.NODE_ENV === 'production',
+});
+```
+
+The cache holds one entry per template file, so it is bounded by what is on disk, and it
+belongs to the service instance rather than being shared process-wide.
+
+`render()` is never cached. Its input is an arbitrary string, and keying a cache on that
+would let a caller grow it without limit.
 
 ## Usage
 
