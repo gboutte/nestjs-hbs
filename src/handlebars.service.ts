@@ -55,17 +55,46 @@ export class HandlebarsService implements OnModuleInit {
       );
     }
 
+    // Resolved outside the try so that a traversal attempt surfaces as itself
+    // instead of being swallowed into a generic "Could not render file".
+    const fullpath = this.resolveWithin(
+      path.join(process.cwd(), this.options.templateDirectory),
+      file,
+      'template',
+    );
+
     try {
-      const fullpath = path.join(
-        process.cwd(),
-        this.options.templateDirectory,
-        file,
-      );
       data = fs.readFileSync(fullpath, 'utf8');
     } catch (err) {
       throw new InternalServerErrorException('Could not render file');
     }
     return this.render(data, parameters);
+  }
+
+  /**
+   * Resolves `relative` against `root` and refuses anything that lands outside
+   * of it. `path.join` alone does not confine: a `../` segment — or an absolute
+   * path — walks straight out of the directory, which turns a template name
+   * derived from user input into an arbitrary file read.
+   *
+   * The check is lexical, so a symlink pointing outside of `root` is still
+   * followed. Confining those would mean resolving the real path, which only
+   * works on files that already exist.
+   */
+  private resolveWithin(root: string, relative: string, label: string): string {
+    const resolvedRoot = path.resolve(root);
+    const resolved = path.resolve(resolvedRoot, relative);
+
+    if (
+      resolved !== resolvedRoot &&
+      !resolved.startsWith(resolvedRoot + path.sep)
+    ) {
+      throw new InternalServerErrorException(
+        `Invalid ${label} path: "${relative}" resolves outside of ${resolvedRoot}`,
+      );
+    }
+
+    return resolved;
   }
 
   /**
@@ -88,7 +117,11 @@ export class HandlebarsService implements OnModuleInit {
       'base64ImageSrc',
       (imagePath: string): Handlebars.SafeString => {
         const bitmap = fs.readFileSync(
-          path.join(process.cwd(), 'templates/assets/img', imagePath),
+          this.resolveWithin(
+            path.join(process.cwd(), 'templates/assets/img'),
+            imagePath,
+            'image',
+          ),
         );
         const base64String = Buffer.from(bitmap).toString('base64');
 

@@ -97,6 +97,61 @@ describe('HandlebarsService', () => {
         InternalServerErrorException,
       );
     });
+
+    it('renders a template nested inside templateDirectory', () => {
+      const service = createService({ templateDirectory: TEMPLATE_DIR });
+
+      expect(service.renderFile('nested/deep.hbs', { name: 'John' })).toBe(
+        'Deep John!',
+      );
+    });
+  });
+
+  describe('renderFile path confinement', () => {
+    // package.json sits at the repository root, two levels above the fixtures:
+    // a readable file that must stay unreachable through renderFile.
+    const escapes = [
+      '../../../package.json',
+      'nested/../../../package.json',
+      './../../../package.json',
+      path.resolve('package.json'),
+    ];
+
+    for (const file of escapes) {
+      it(`refuses "${file}"`, () => {
+        const service = createService({ templateDirectory: TEMPLATE_DIR });
+
+        expect(() => service.renderFile(file)).toThrow(/resolves outside of/);
+      });
+    }
+
+    it('refuses an escape even when the target does not exist', () => {
+      const service = createService({ templateDirectory: TEMPLATE_DIR });
+
+      // Without confinement this would fail as a read error, which would hide
+      // the traversal behind a generic message.
+      expect(() => service.renderFile('../../../nope.hbs')).toThrow(
+        /resolves outside of/,
+      );
+    });
+
+    // Guards the `root + path.sep` part of the check: a bare startsWith(root)
+    // would let "templates-sibling" through because it shares the prefix.
+    it('refuses a sibling directory sharing the same prefix', () => {
+      const service = createService({ templateDirectory: TEMPLATE_DIR });
+
+      expect(() =>
+        service.renderFile('../templates-sibling/hello.hbs'),
+      ).toThrow(/resolves outside of/);
+    });
+
+    it('allows a path that normalizes back into the directory', () => {
+      const service = createService({ templateDirectory: TEMPLATE_DIR });
+
+      expect(service.renderFile('nested/../hello.hbs', { name: 'John' })).toBe(
+        'Hello John!',
+      );
+    });
   });
 
   describe('partials', () => {
