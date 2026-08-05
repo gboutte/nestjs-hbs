@@ -1,9 +1,15 @@
-import { InternalServerErrorException } from '@nestjs/common';
 import * as fs from 'fs';
 import Handlebars from 'handlebars';
 import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { HandlebarsOptions } from '../src/handlebars-options.interface';
+import {
+  HandlebarsConfigurationError,
+  HandlebarsError,
+  HandlebarsInvalidPathError,
+  HandlebarsRenderError,
+  HandlebarsTemplateNotFoundError,
+} from '../src/handlebars.error';
 import { HandlebarsService } from '../src/handlebars.service';
 
 const TEMPLATE_DIR = 'test/fixtures/templates';
@@ -68,8 +74,25 @@ describe('HandlebarsService', () => {
       const service = createService();
 
       expect(() => service.render('{{#if condition}}never closed')).toThrow(
-        InternalServerErrorException,
+        HandlebarsRenderError,
       );
+    });
+
+    it('keeps the Handlebars error as the cause', () => {
+      const service = createService();
+
+      try {
+        service.render('{{#if condition}}never closed');
+        expect.unreachable('render should have thrown');
+      } catch (err) {
+        expect(err).toBeInstanceOf(HandlebarsRenderError);
+        // Handlebars points at the offending line and says what it expected.
+        // That detail used to be flattened into the message by concatenation.
+        expect((err as HandlebarsRenderError).cause).toBeInstanceOf(Error);
+        expect(String((err as HandlebarsRenderError).cause)).toMatch(
+          /Parse error on line 1/,
+        );
+      }
     });
   });
 
@@ -86,6 +109,9 @@ describe('HandlebarsService', () => {
       const service = createService();
 
       expect(() => service.renderFile('hello.hbs')).toThrow(
+        HandlebarsConfigurationError,
+      );
+      expect(() => service.renderFile('hello.hbs')).toThrow(
         'Option templateDirectory is not set',
       );
     });
@@ -94,8 +120,28 @@ describe('HandlebarsService', () => {
       const service = createService({ templateDirectory: TEMPLATE_DIR });
 
       expect(() => service.renderFile('does-not-exist.hbs')).toThrow(
-        InternalServerErrorException,
+        HandlebarsTemplateNotFoundError,
       );
+    });
+
+    it('reports the file and the underlying fs error when the read fails', () => {
+      const service = createService({ templateDirectory: TEMPLATE_DIR });
+
+      try {
+        service.renderFile('does-not-exist.hbs');
+        expect.unreachable('renderFile should have thrown');
+      } catch (err) {
+        expect(err).toBeInstanceOf(HandlebarsTemplateNotFoundError);
+        const notFound = err as HandlebarsTemplateNotFoundError;
+
+        // The old message was a bare 'Could not render file': no filename, no
+        // way to tell an absent file from a permission problem.
+        expect(notFound.templatePath).toBe(
+          path.resolve(TEMPLATE_DIR, 'does-not-exist.hbs'),
+        );
+        expect(notFound.message).toContain('does-not-exist.hbs');
+        expect((notFound.cause as NodeJS.ErrnoException).code).toBe('ENOENT');
+      }
     });
 
     it('renders a template nested inside templateDirectory', () => {
@@ -152,6 +198,22 @@ describe('HandlebarsService', () => {
         'Hello John!',
       );
     });
+
+    it('reports a traversal as a rejected input, not a missing file', () => {
+      const service = createService({ templateDirectory: TEMPLATE_DIR });
+
+      try {
+        service.renderFile('../../../package.json');
+        expect.unreachable('renderFile should have thrown');
+      } catch (err) {
+        expect(err).toBeInstanceOf(HandlebarsInvalidPathError);
+        expect(err).not.toBeInstanceOf(HandlebarsTemplateNotFoundError);
+
+        const invalid = err as HandlebarsInvalidPathError;
+        expect(invalid.requestedPath).toBe('../../../package.json');
+        expect(invalid.root).toBe(path.resolve(TEMPLATE_DIR));
+      }
+    });
   });
 
   describe('partials', () => {
@@ -174,12 +236,21 @@ describe('HandlebarsService', () => {
       );
     });
 
+    // A fresh service per assertion: `initialize()` flips its guard before
+    // registering, so a service whose initialization threw does not retry on
+    // the next render.
     it('throws when partialDirectory does not exist', () => {
-      const service = createService({ partialDirectory: 'test/fixtures/nope' });
+      expect(() =>
+        createService({ partialDirectory: 'test/fixtures/nope' }).render(
+          'anything',
+        ),
+      ).toThrow(HandlebarsConfigurationError);
 
-      expect(() => service.render('anything')).toThrow(
-        /Partial directory does not exist/,
-      );
+      expect(() =>
+        createService({ partialDirectory: 'test/fixtures/nope' }).render(
+          'anything',
+        ),
+      ).toThrow(/Partial directory does not exist/);
     });
 
     it('renders without partials when partialDirectory is omitted', () => {
@@ -246,7 +317,67 @@ describe('HandlebarsService', () => {
       const service = createService({ partialDirectory: 'test/fixtures/nope' });
 
       expect(() => service.onModuleInit()).toThrow(
-        /Partial directory does not exist/,
+        HandlebarsConfigurationError,
+      );
+    });
+  });
+
+  describe('errors', () => {
+    // The point of the hierarchy: one catch clause covers the library, and a
+    // configuration mistake stays distinguishable from a runtime failure.
+    it('lets a single catch clause cover every failure mode', () => {
+      const cases = [
+        () => createService().renderFile('hello.hbs'),
+        () =>
+          createService({ templateDirectory: TEMPLATE_DIR }).renderFile(
+            'does-not-exist.hbs',
+          ),
+        () =>
+          createService({ templateDirectory: TEMPLATE_DIR }).renderFile(
+            '../../../package.json',
+          ),
+        () => createService().render('{{#if condition}}never closed'),
+      ];
+
+      for (const run of cases) {
+        expect(run).toThrow(HandlebarsError);
+      }
+    });
+
+    it('separates configuration errors from runtime errors', () => {
+      const configuration = () => createService().renderFile('hello.hbs');
+      const runtime = () =>
+        createService().render('{{#if condition}}never closed');
+
+      expect(configuration).toThrow(HandlebarsConfigurationError);
+      expect(runtime).not.toThrow(HandlebarsConfigurationError);
+      expect(runtime).toThrow(HandlebarsRenderError);
+    });
+
+    it('does not leak HTTP semantics into the thrown errors', () => {
+      // Rendering also backs emails, PDFs and CLI output. Nothing thrown here
+      // should carry a status code.
+      try {
+        createService().renderFile('hello.hbs');
+        expect.unreachable('renderFile should have thrown');
+      } catch (err) {
+        expect(err).toBeInstanceOf(Error);
+        expect(err).not.toHaveProperty('status');
+        expect(err).not.toHaveProperty('getStatus');
+      }
+    });
+
+    it('names each error after its own class', () => {
+      expect(new HandlebarsError('x').name).toBe('HandlebarsError');
+      expect(new HandlebarsConfigurationError('x').name).toBe(
+        'HandlebarsConfigurationError',
+      );
+      expect(new HandlebarsRenderError('x').name).toBe('HandlebarsRenderError');
+      expect(new HandlebarsInvalidPathError('x', 'p', 'r').name).toBe(
+        'HandlebarsInvalidPathError',
+      );
+      expect(new HandlebarsTemplateNotFoundError('x', 'p').name).toBe(
+        'HandlebarsTemplateNotFoundError',
       );
     });
   });
@@ -288,7 +419,7 @@ describe('HandlebarsService', () => {
 
       expect(withPartials.render('{{> siteHeader}}')).toBe('[header]');
       expect(() => withoutPartials.render('{{> siteHeader}}')).toThrow(
-        InternalServerErrorException,
+        HandlebarsRenderError,
       );
     });
   });

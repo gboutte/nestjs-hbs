@@ -21,13 +21,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   longer resolve.
 - Releases are published with npm provenance, so each version carries a signed
   attestation linking it to the workflow run that built it.
+- **Breaking.** The library no longer throws `InternalServerErrorException`. Rendering
+  also backs emails, PDFs and CLI output, where an HTTP status has no meaning, and the
+  HTTP exception made a startup misconfiguration indistinguishable from a runtime
+  failure. Dedicated error classes are thrown instead — see *Added* below. Applications
+  that relied on the exception reaching a controller and turning into a 500 now need to
+  map these errors themselves.
+- `renderFile` no longer reports every failure as `Could not render file`. The message
+  now names the file, and the underlying `fs` error is kept in `cause`, so an absent file
+  stays distinguishable from a permission or encoding problem.
 
 ### Added
 - A `LICENSE` file. The package was already declared MIT but shipped without one.
+- Dedicated error classes, all exported from the package root and all extending
+  `HandlebarsError`, so a single `catch` clause covers the library:
+  `HandlebarsConfigurationError` (missing option, missing directory — raised at startup),
+  `HandlebarsTemplateNotFoundError`, `HandlebarsInvalidPathError` and
+  `HandlebarsRenderError`.
 
 ### Fixed
 - A missing `partialDirectory` is now reported when the application starts rather than on
   the first render.
+- **Path traversal.** `renderFile` joined its argument onto the template directory without
+  confining the result, so a `../` segment — or an absolute path — escaped the directory.
+  An application deriving a template name from user input could be made to read any file
+  the process could reach. Paths are now resolved and rejected if they land outside the
+  template directory, which is also applied to the `base64ImageSrc` helper. The check is
+  lexical: a symlink inside the template directory pointing outside of it is still
+  followed.
 
 ## 0.2.0 - 2025-07-31
 ### Added

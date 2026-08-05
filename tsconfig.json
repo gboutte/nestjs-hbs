@@ -7,6 +7,10 @@
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
     "target": "es2017",
+    // Emit stays at es2017, but the type definitions follow what `engines.node`
+    // (>=20) actually provides — notably `new Error(msg, { cause })`, which the
+    // es2017 lib does not declare.
+    "lib": ["es2022"],
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
@@ -18,5 +22,5 @@
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false
   },
-  "exclude": [ "dist", "demo-app"]
+  "exclude": ["dist", "demo-app"]
 }

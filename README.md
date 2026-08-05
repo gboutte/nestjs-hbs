@@ -124,6 +124,53 @@ export class AppController {
 
 A runnable version of this lives in [`demo-app/`](./demo-app).
 
+### Template paths are confined
+
+`renderFile` resolves its argument inside `templateDirectory` and rejects anything that
+lands outside of it, so a template name built from user input cannot be turned into an
+arbitrary file read:
+
+```ts
+this.hbsService.renderFile(`${req.query.theme}.hbs`); // '../../../etc/passwd' is refused
+```
+
+The check is lexical. A symlink placed inside `templateDirectory` and pointing outside of
+it is still followed.
+
+## Errors
+
+Everything thrown by this library extends `HandlebarsError`, so one `catch` clause covers
+it. Nothing carries an HTTP status: rendering also backs emails, PDFs and CLI output,
+where a 500 means nothing. Applications behind HTTP map these onto the responses they
+want.
+
+| Error | Thrown when |
+|---|---|
+| `HandlebarsConfigurationError` | The module is misconfigured — a missing option, a `partialDirectory` that does not exist. Raised at startup, not per request. |
+| `HandlebarsTemplateNotFoundError` | The template file could not be read. Carries `templatePath`, and the underlying `fs` error in `cause`. |
+| `HandlebarsInvalidPathError` | The requested path resolved outside of its directory. Carries `requestedPath` and `root`. |
+| `HandlebarsRenderError` | Handlebars failed to compile or run the template. The original Handlebars error is in `cause`. |
+
+```ts
+import {
+  HandlebarsError,
+  HandlebarsInvalidPathError,
+} from '@gboutte/nestjs-hbs';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+
+try {
+  return this.hbsService.renderFile(name, { name: 'John Doe' });
+} catch (err) {
+  if (err instanceof HandlebarsInvalidPathError) {
+    throw new BadRequestException('Unknown template');
+  }
+  if (err instanceof HandlebarsError) {
+    throw new NotFoundException('Template unavailable');
+  }
+  throw err;
+}
+```
+
 ## License
 
 MIT

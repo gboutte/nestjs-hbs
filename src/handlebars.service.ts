@@ -1,14 +1,14 @@
-import {
-  Inject,
-  Injectable,
-  InternalServerErrorException,
-  Logger,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import * as fs from 'fs';
 import Handlebars from 'handlebars';
 import * as path from 'path';
 import { HandlebarsOptions } from './handlebars-options.interface';
+import {
+  HandlebarsConfigurationError,
+  HandlebarsInvalidPathError,
+  HandlebarsRenderError,
+  HandlebarsTemplateNotFoundError,
+} from './handlebars.error';
 
 @Injectable()
 export class HandlebarsService implements OnModuleInit {
@@ -41,16 +41,16 @@ export class HandlebarsService implements OnModuleInit {
       );
       return template(parameters, this.options.templateOptions ?? {});
     } catch (err) {
-      throw new InternalServerErrorException(
-        'Could not render template: ' + err,
-      );
+      throw new HandlebarsRenderError('Could not render template', {
+        cause: err,
+      });
     }
   }
 
   renderFile(file: string, parameters: any = {}): string {
     let data;
     if (this.options.templateDirectory === undefined) {
-      throw new InternalServerErrorException(
+      throw new HandlebarsConfigurationError(
         'Option templateDirectory is not set',
       );
     }
@@ -66,7 +66,11 @@ export class HandlebarsService implements OnModuleInit {
     try {
       data = fs.readFileSync(fullpath, 'utf8');
     } catch (err) {
-      throw new InternalServerErrorException('Could not render file');
+      throw new HandlebarsTemplateNotFoundError(
+        `Could not read template file: ${fullpath}`,
+        fullpath,
+        { cause: err },
+      );
     }
     return this.render(data, parameters);
   }
@@ -89,8 +93,10 @@ export class HandlebarsService implements OnModuleInit {
       resolved !== resolvedRoot &&
       !resolved.startsWith(resolvedRoot + path.sep)
     ) {
-      throw new InternalServerErrorException(
+      throw new HandlebarsInvalidPathError(
         `Invalid ${label} path: "${relative}" resolves outside of ${resolvedRoot}`,
+        relative,
+        resolvedRoot,
       );
     }
 
@@ -144,7 +150,7 @@ export class HandlebarsService implements OnModuleInit {
     const partialPath = path.join(process.cwd(), this.options.partialDirectory);
 
     if (!fs.existsSync(partialPath)) {
-      throw new InternalServerErrorException(
+      throw new HandlebarsConfigurationError(
         'Partial directory does not exist: ' + partialPath,
       );
     }
