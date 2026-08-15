@@ -124,8 +124,22 @@ jobs:
             exit 0
           fi
           echo "::add-mask::$NPM_TOKEN"
-          echo "--- whoami avec le token minté ---"
-          curl -sS -i -H "Authorization: Bearer $NPM_TOKEN" https://registry.npmjs.org/-/whoami
+          PKG='https://registry.npmjs.org/-/package/@gboutte%2fnestjs-hbs'
+          # Lecture qui, elle, exige une authentification : si elle passe, le
+          # token est bon et scopé au package (contrairement à /-/whoami, qui
+          # résout un utilisateur et rejette un token sans identité).
+          echo "--- visibility (lecture authentifiée) ---"
+          curl -sS -i -H "Authorization: Bearer $NPM_TOKEN" "$PKG/visibility"
+          # Écriture réelle, même classe d'opération que celle qui a réussi en
+          # local avec le credential humain. C'est le corps de cette réponse
+          # que la CLI npm n'affiche jamais.
+          echo "--- écriture : dist-tag tmp-oidc-write-test ---"
+          curl -sS -i -X PUT -H "Authorization: Bearer $NPM_TOKEN" \
+            -H 'Content-Type: application/json' -d '"0.2.0"' \
+            "$PKG/dist-tags/tmp-oidc-write-test"
+          echo "--- nettoyage (échoue sans conséquence si l'écriture a été refusée) ---"
+          curl -sS -i -X DELETE -H "Authorization: Bearer $NPM_TOKEN" \
+            "$PKG/dist-tags/tmp-oidc-write-test"
 
       # Push repository changes
       - name: Push changes to repository
