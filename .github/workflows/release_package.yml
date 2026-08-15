@@ -7,8 +7,8 @@ on:
         required: true
 
 permissions:
-  contents: write # push the release commit, the tag and the GitHub release
   id-token: write # mint the OIDC token npm trusted publishing needs
+  contents: write # push the release commit, the tag and the GitHub release
 
 jobs:
   release:
@@ -30,7 +30,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          registry-url: https://registry.npmjs.org/
+          registry-url: 'https://registry.npmjs.org'
           node-version-file: '.nvmrc'
           package-manager-cache: false
 
@@ -102,7 +102,7 @@ jobs:
       # This step is deliberately identical to the one in gboutte/angular-
       # structured-data, which publishes over OIDC without trouble.
       - name: Publish
-        run: npm publish --verbose --access public --tag ${{ env.RELEASE_TAG }}
+        run: npm publish --verbose --access public --provenance=false --tag ${{ env.RELEASE_TAG }}
 
       # Push repository changes
       - name: Push changes to repository
