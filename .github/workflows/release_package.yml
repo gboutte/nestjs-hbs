@@ -30,7 +30,6 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          registry-url: 'https://registry.npmjs.org'
           node-version-file: '.nvmrc'
           package-manager-cache: false
 
@@ -102,7 +101,7 @@ jobs:
       # This step is deliberately identical to the one in gboutte/angular-
       # structured-data, which publishes over OIDC without trouble.
       - name: Publish
-        run: npm stage publish --verbose --access public --provenance=false --tag ${{ env.RELEASE_TAG }}
+        run: npm publish --verbose --access public --provenance=false --tag ${{ env.RELEASE_TAG }}
 
       - name: Dump npm debug logs
         if: always()
