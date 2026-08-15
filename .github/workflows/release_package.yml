@@ -30,6 +30,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
+          # Pas de `registry-url` : il ferait écrire un .npmrc contenant
+          # `_authToken=${NODE_AUTH_TOKEN}`, variable définie nulle part depuis
+          # le passage à l'OIDC. npm vise registry.npmjs.org par défaut.
           node-version-file: '.nvmrc'
           package-manager-cache: false
 
@@ -93,64 +96,16 @@ jobs:
           git tag ${{ env.NEW_VERSION }}
 
       # Publish version to public repository.
-      # Authentication is OIDC only (trusted publishing). NODE_AUTH_TOKEN is
-      # deliberately absent: `registry-url` above makes setup-node write
-      # `_authToken=${NODE_AUTH_TOKEN}` into the runner .npmrc, and a value
-      # there beats the token npm mints from OIDC.
+      # Authentification par OIDC seul (trusted publishing) : pas de
+      # NODE_AUTH_TOKEN, et npm active la provenance de lui-même dans ce mode.
       #
-      # This step is deliberately identical to the one in gboutte/angular-
-      # structured-data, which publishes over OIDC without trouble.
+      # Bloqué côté registre depuis le 2026-08-15 : le PUT renvoie 403, y
+      # compris depuis un poste avec le compte mainteneur et sa 2FA, et y
+      # compris via `npm stage publish`. Ce n'est donc ni le workflow ni le
+      # token OIDC — ticket ouvert au support npm. Une écriture de dist-tag sur
+      # le même package passe, elle.
       - name: Publish
-        run: npm stage publish --verbose --access public --provenance=false --tag ${{ env.RELEASE_TAG }}
-
-      - name: Dump npm debug logs
-        if: always()
-        run: tail -n +1 "$HOME"/.npm/_logs/*.log
-
-      - name: Inspect OIDC token identity
-        if: always()
-        continue-on-error: true
-        run: |
-          set +e
-          echo "--- début ---"
-          echo "ACTIONS_ID_TOKEN_REQUEST_URL défini : $([ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && echo oui || echo NON)"
-          echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN défini : $([ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ] && echo oui || echo NON)"
-          ID_RESPONSE=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=npm%3Aregistry.npmjs.org" 2>&1)
-          ID_TOKEN=$(echo "$ID_RESPONSE" | jq -r '.value // empty' 2>/dev/null)
-          if [ -z "$ID_TOKEN" ]; then
-            echo "Pas de id-token. Réponse brute :"
-            echo "$ID_RESPONSE"
-            exit 0
-          fi
-          echo "::add-mask::$ID_TOKEN"
-          echo "id-token obtenu"
-          RESPONSE=$(curl -sS -X POST -H "Authorization: Bearer $ID_TOKEN" \
-            -H 'Content-Type: application/json' \
-            'https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/@gboutte%2fnestjs-hbs')
-          NPM_TOKEN=$(echo "$RESPONSE" | jq -r '.token // empty')
-          if [ -z "$NPM_TOKEN" ]; then
-            echo "Échange sans token, réponse brute :"
-            echo "$RESPONSE"
-            exit 0
-          fi
-          echo "::add-mask::$NPM_TOKEN"
-          PKG='https://registry.npmjs.org/-/package/@gboutte%2fnestjs-hbs'
-          # Lecture qui, elle, exige une authentification : si elle passe, le
-          # token est bon et scopé au package (contrairement à /-/whoami, qui
-          # résout un utilisateur et rejette un token sans identité).
-          echo "--- visibility (lecture authentifiée) ---"
-          curl -sS -i -H "Authorization: Bearer $NPM_TOKEN" "$PKG/visibility"
-          # Écriture réelle, même classe d'opération que celle qui a réussi en
-          # local avec le credential humain. C'est le corps de cette réponse
-          # que la CLI npm n'affiche jamais.
-          echo "--- écriture : dist-tag tmp-oidc-write-test ---"
-          curl -sS -i -X PUT -H "Authorization: Bearer $NPM_TOKEN" \
-            -H 'Content-Type: application/json' -d '"0.2.0"' \
-            "$PKG/dist-tags/tmp-oidc-write-test"
-          echo "--- nettoyage (échoue sans conséquence si l'écriture a été refusée) ---"
-          curl -sS -i -X DELETE -H "Authorization: Bearer $NPM_TOKEN" \
-            "$PKG/dist-tags/tmp-oidc-write-test"
+        run: npm publish --verbose --access public --tag ${{ env.RELEASE_TAG }}
 
       # Push repository changes
       - name: Push changes to repository
